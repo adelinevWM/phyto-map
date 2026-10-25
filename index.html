@@ -1,0 +1,405 @@
+# phyto-map
+Output: agol-esque interactive map 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pennsylvania Interactive Map</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- FontAwesome Icons for AGOL-style buttons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+  <style>
+    /* Reset and Full-Screen Setup */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+      overflow: hidden;
+      background-color: #1e1e1e;
+    }
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* TOP LEFT: AGOL-Style Search Bar (UI Placeholder) */
+    .agol-search-container {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      z-index: 1000;
+      display: flex;
+      background: #ffffff;
+      border-radius: 2px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+      width: 280px;
+      height: 34px;
+      overflow: hidden;
+      border: 1px solid #d1d1d1;
+    }
+    .agol-search-input {
+      border: none;
+      padding: 0 10px;
+      flex: 1;
+      font-size: 13px;
+      color: #323232;
+      outline: none;
+    }
+    .agol-search-btn {
+      background: #ffffff;
+      border: none;
+      border-left: 1px solid #ececec;
+      width: 34px;
+      height: 34px;
+      cursor: pointer;
+      color: #6e6e6e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .agol-search-btn:hover {
+      background: #f3f3f3;
+      color: #151515;
+    }
+
+    /* TOP RIGHT: AGOL Widget Stack */
+    .agol-top-right-stack {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    /* Individual AGOL Square Buttons */
+    .agol-btn-group {
+      display: flex;
+      flex-direction: column;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .agol-btn {
+      width: 34px;
+      height: 34px;
+      background: #ffffff;
+      border: none;
+      border-bottom: 1px solid #e0e0e0;
+      color: #4c4c4c;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .agol-btn:last-child {
+      border-bottom: none;
+    }
+    .agol-btn:hover {
+      background: #f0f0f0;
+      color: #000000;
+    }
+    .agol-btn.active {
+      background: #0079c1;
+      color: #ffffff;
+    }
+
+    /* Basemap Toggle Card */
+    .agol-basemap-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #ffffff;
+      padding: 6px 10px;
+      border-radius: 2px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      color: #323232;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .agol-basemap-toggle:hover {
+      background: #f8f8f8;
+      border-color: #0079c1;
+    }
+    .basemap-swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 2px;
+      background: #2b2b2b;
+      border: 1px solid #999;
+      display: inline-block;
+    }
+
+    /* Collapsible Empty Layer List Panel */
+    .agol-layer-panel {
+      width: 260px;
+      background: #ffffff;
+      border-radius: 2px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+      display: block; /* Shown by default so supervisor sees it immediately */
+    }
+    .agol-layer-panel.hidden {
+      display: none;
+    }
+    .panel-header {
+      background: #f8f8f8;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #323232;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .panel-close {
+      background: none;
+      border: none;
+      color: #6e6e6e;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .panel-close:hover {
+      color: #000;
+    }
+    .panel-body {
+      padding: 20px 14px;
+      text-align: center;
+      color: #6e6e6e;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .panel-body i {
+      font-size: 22px;
+      color: #b0b0b0;
+      margin-bottom: 8px;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Map Container -->
+  <div id="map"></div>
+
+  <!-- TOP LEFT: Search Bar (UI Ready for Future Functionality) -->
+  <div class="agol-search-container">
+    <input type="text" class="agol-search-input" placeholder="Find address or place in PA..." />
+    <button class="agol-search-btn" title="Search (Coming Soon)" onclick="alert('Search functionality will be connected in the next update.')">
+      <i class="fa-solid fa-magnifying-glass"></i>
+    </button>
+  </div>
+
+  <!-- TOP RIGHT: Zoom, Home, Basemap Toggle, and Layer List -->
+  <div class="agol-top-right-stack">
+    
+    <!-- Zoom In / Out Group -->
+    <div class="agol-btn-group">
+      <button class="agol-btn" id="zoomInBtn" title="Zoom in">
+        <i class="fa-solid fa-plus"></i>
+      </button>
+      <button class="agol-btn" id="zoomOutBtn" title="Zoom out">
+        <i class="fa-solid fa-minus"></i>
+      </button>
+    </div>
+
+    <!-- Home Button -->
+    <div class="agol-btn-group">
+      <button class="agol-btn" id="homeBtn" title="Default Pennsylvania view">
+        <i class="fa-solid fa-house"></i>
+      </button>
+    </div>
+
+    <!-- Basemap Toggle (Light Gray <-> Dark Gray) -->
+    <div class="agol-basemap-toggle" id="basemapToggleBtn" title="Switch between Light and Dark Gray Canvas">
+      <span class="basemap-swatch" id="basemapSwatch"></span>
+      <span id="basemapLabel">Dark Gray Canvas</span>
+    </div>
+
+    <!-- Layer List Toggle Button -->
+    <div class="agol-btn-group">
+      <button class="agol-btn active" id="layerToggleBtn" title="Toggle Layer List">
+        <i class="fa-solid fa-layer-group"></i>
+      </button>
+    </div>
+
+    <!-- Empty Layer List Panel -->
+    <div class="agol-layer-panel" id="layerPanel">
+      <div class="panel-header">
+        <span>Layers</span>
+        <button class="panel-close" id="closeLayerPanel" title="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="panel-body">
+        <i class="fa-solid fa-layer-group"></i>
+        <strong>No data layers active</strong><br />
+        Data layers will be added here in upcoming versions.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // 1. Default Pennsylvania Center & Zoom
+    const PA_CENTER = [40.9, -77.75];
+    const PA_ZOOM = 7;
+
+    // 2. Initialize Map (disable default top-left zoom so we can put it in top-right)
+    const map = L.map('map', {
+      center: PA_CENTER,
+      zoom: PA_ZOOM,
+      zoomControl: false,
+      minZoom: 5
+    });
+
+    // 3. Define Esri Light Gray and Dark Gray Canvas Basemaps (Base + Reference Labels)
+    const lightGrayBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
+    });
+    const lightGrayLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}');
+
+    const darkGrayBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
+    });
+    const darkGrayLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}');
+
+    const lightGrayGroup = L.layerGroup([lightGrayBase, lightGrayLabels]);
+    const darkGrayGroup = L.layerGroup([darkGrayBase, darkGrayLabels]);
+
+    // Start with Light Gray Canvas
+    let isDarkBasemap = false;
+    lightGrayGroup.addTo(map);
+
+    // 4. Fetch Pennsylvania Boundary & Create Spotlight Mask (Option B: Shade Everything Outside PA)
+    let paBounds = null;
+    let paBorderLayer = null;
+    let maskLayer = null;
+
+    fetch('https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json')
+      .then(response => response.json())
+      .then(data => {
+        const paFeature = data.features.find(f => f.properties.name === 'Pennsylvania');
+        if (!paFeature) return;
+
+        // Extract PA outer ring coordinates
+        const paCoords = paFeature.geometry.coordinates[0];
+
+        // World outer ring (covers the entire globe) + PA ring as an inner cutout hole
+        const worldOuterRing = [
+          [-180, -90],
+          [-180, 90],
+          [180, 90],
+          [180, -90],
+          [-180, -90]
+        ];
+
+        const maskGeoJSON = {
+          type: "Feature",
+          geometry: {
+            type: "Polygon",
+            coordinates: [worldOuterRing, paCoords]
+          }
+        };
+
+        // Add Spotlight Shade outside Pennsylvania
+        maskLayer = L.geoJSON(maskGeoJSON, {
+          style: {
+            fillColor: '#121212',
+            fillOpacity: 0.65,
+            stroke: false,
+            interactive: false
+          }
+        }).addTo(map);
+
+        // Add Crisp Pennsylvania Outline
+        paBorderLayer = L.geoJSON(paFeature, {
+          style: {
+            color: '#2c3e50',
+            weight: 2.5,
+            fillOpacity: 0,
+            interactive: false
+          }
+        }).addTo(map);
+
+        // Save exact PA bounds and fit screen nicely
+        paBounds = paBorderLayer.getBounds();
+        map.fitBounds(paBounds, { padding: [40, 40] });
+      });
+
+    // 5. Wire Up Top-Right AGOL Controls
+    document.getElementById('zoomInBtn').addEventListener('click', () => map.zoomIn());
+    document.getElementById('zoomOutBtn').addEventListener('click', () => map.zoomOut());
+
+    document.getElementById('homeBtn').addEventListener('click', () => {
+      if (paBounds) {
+        map.fitBounds(paBounds, { padding: [40, 40] });
+      } else {
+        map.setView(PA_CENTER, PA_ZOOM);
+      }
+    });
+
+    // Basemap Toggle Logic
+    const basemapToggleBtn = document.getElementById('basemapToggleBtn');
+    const basemapLabel = document.getElementById('basemapLabel');
+    const basemapSwatch = document.getElementById('basemapSwatch');
+
+    basemapToggleBtn.addEventListener('click', () => {
+      if (!isDarkBasemap) {
+        map.removeLayer(lightGrayGroup);
+        darkGrayGroup.addTo(map);
+        basemapLabel.textContent = 'Light Gray Canvas';
+        basemapSwatch.style.background = '#e6e6e6';
+        if (paBorderLayer) paBorderLayer.setStyle({ color: '#00b4d8' }); // Crisp cyan-blue outline on dark mode
+        if (maskLayer) maskLayer.setStyle({ fillColor: '#000000', fillOpacity: 0.75 });
+      } else {
+        map.removeLayer(darkGrayGroup);
+        lightGrayGroup.addTo(map);
+        basemapLabel.textContent = 'Dark Gray Canvas';
+        basemapSwatch.style.background = '#2b2b2b';
+        if (paBorderLayer) paBorderLayer.setStyle({ color: '#2c3e50' });
+        if (maskLayer) maskLayer.setStyle({ fillColor: '#121212', fillOpacity: 0.65 });
+      }
+      isDarkBasemap = !isDarkBasemap;
+    });
+
+    // Layer List Toggle Logic
+    const layerToggleBtn = document.getElementById('layerToggleBtn');
+    const layerPanel = document.getElementById('layerPanel');
+    const closeLayerPanel = document.getElementById('closeLayerPanel');
+
+    layerToggleBtn.addEventListener('click', () => {
+      layerPanel.classList.toggle('hidden');
+      layerToggleBtn.classList.toggle('active');
+    });
+
+    closeLayerPanel.addEventListener('click', () => {
+      layerPanel.classList.add('hidden');
+      layerToggleBtn.classList.remove('active');
+    });
+  </script>
+</body>
+</html>
