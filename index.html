@@ -4,7 +4,7 @@
   Output: agol-esque interactive map
   First attempt: base map of cont. US that emphasizes Pennsylvania (prepared for national scale)
   Layer 1: USGS DS-801 Surface Soil Yttrium (0-5 cm depth) - 1-9x UCC Tiers (UCC = 21 ppm)
-  Layer 2: National OSMRE e-AMLIS Abandoned Mine Land Problem Areas (Filtered to PA for now)
+  Layer 2: PASDA PADEP Abandoned Mine Land Problem Areas (PA)
 -->
 <html lang="en">
 <head>
@@ -19,7 +19,7 @@
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body, html { width: 100%; height: 100%; font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif; overflow: hidden; background-color: #1e1e1e; }
+    body, html { width: 100%; height: 100%; font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif; overflow: hidden; background-color: #f8f8f8; }
     #map { width: 100%; height: 100%; }
     
     /* TOP LEFT: Search Bar */
@@ -100,12 +100,12 @@
           </div>
         </div>
 
-        <!-- Layer 2: National AML Polygons -->
+        <!-- Layer 2: PASDA AML Polygons -->
         <div class="layer-item" style="border:none;">
           <input type="checkbox" id="toggleAmlLayer" checked />
           <div style="flex:1;">
             <label for="toggleAmlLayer" class="layer-title">Abandoned Mine Lands (AML)</label>
-            <span class="layer-sub">National e-AMLIS Polygons (Filtered to PA)</span>
+            <span class="layer-sub">PASDA PADEP Polygons</span>
             <div style="margin-top:6px;">
               <div class="legend-row"><span class="legend-poly"></span><span>Disturbed Surface Zone / Refuse</span></div>
             </div>
@@ -124,30 +124,38 @@
     const PA_CENTER = [40.9, -77.75];
     const map = L.map('map', { center: PA_CENTER, zoom: 7, zoomControl: false });
 
-    // Basemaps
-    const darkGrayBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}').addTo(map);
-    const darkGrayLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}').addTo(map);
+    // Basemaps (Defaulting to Light Gray)
+    const lightGrayBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}').addTo(map);
+    const lightGrayLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}').addTo(map);
+    
+    const darkGrayBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}');
+    const darkGrayLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}');
 
-    // PA Spotlight Mask (Can be turned off later for National view)
+    let isDarkBasemap = false;
+    let paBounds = null;
+    let paBorderLayer = null;
+    let maskLayer = null;
+
+    // PA Spotlight Mask 
     fetch('https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json')
       .then(response => response.json())
       .then(data => {
         const paFeature = data.features.find(f => f.properties.name === 'Pennsylvania');
         const worldOuterRing = [[-180, -90], [-180, 90], [180, 90], [180, -90], [-180, -90]];
-        L.geoJSON({ type: "Feature", geometry: { type: "Polygon", coordinates: [worldOuterRing, paFeature.geometry.coordinates[0]] } }, { style: { fillColor: '#121212', fillOpacity: 0.7, stroke: false } }).addTo(map);
-        L.geoJSON(paFeature, { style: { color: '#00b4d8', weight: 2, fillOpacity: 0 } }).addTo(map);
+        maskLayer = L.geoJSON({ type: "Feature", geometry: { type: "Polygon", coordinates: [worldOuterRing, paFeature.geometry.coordinates[0]] } }, { style: { fillColor: '#000000', fillOpacity: 0.5, stroke: false } }).addTo(map);
+        paBorderLayer = L.geoJSON(paFeature, { style: { color: '#2c3e50', weight: 2, fillOpacity: 0 } }).addTo(map);
       });
 
-    // LAYER 2: NATIONAL e-AMLIS Polygons (Filtered to PA)
-    // To show the whole country later, we simply remove the `where: "State = 'PA'"` line!
+    // LAYER 2: PASDA Abandoned Mine Land Polygons (Guaranteed PA data)
     const amlLayer = L.esri.featureLayer({
-      url: 'https://eamlis.osmre.gov/arcgis/rest/services/LyrsLookUpSrvc/MapServer/3',
-      where: "State = 'PA'", // Filter for PA only right now
+      url: 'https://www.pasda.psu.edu/arcgis/rest/services/pasda/PADEP/MapServer/61',
+      simplifyFactor: 0.5,
+      precision: 5,
       style: function () {
-        return { color: '#8e44ad', weight: 1.5, fillOpacity: 0.4 };
+        return { color: '#8e44ad', weight: 1, fillOpacity: 0.5 };
       }
     }).bindPopup(function (layer) {
-      return `<b>AML Site:</b> ${layer.feature.properties.SiteName}<br><b>State:</b> ${layer.feature.properties.State}`;
+      return `<b>Abandoned Mine Land (AML)</b><br><b>Name:</b> ${layer.feature.properties.NAME || 'N/A'}<br><b>Problem Area:</b> ${layer.feature.properties.PROBLEM_AREA_ID || 'N/A'}`;
     }).addTo(map);
 
     // LAYER 1: Embedded USGS Soil Data
@@ -179,6 +187,34 @@
     document.getElementById('toggleSoilLayer').addEventListener('change', (e) => e.target.checked ? map.addLayer(soilLayerGroup) : map.removeLayer(soilLayerGroup));
     document.getElementById('toggleAmlLayer').addEventListener('change', (e) => e.target.checked ? map.addLayer(amlLayer) : map.removeLayer(amlLayer));
     document.getElementById('uccFilterSelect').addEventListener('change', (e) => renderSoilPoints(parseFloat(e.target.value)));
+
+    // Basemap Toggle Logic
+    const basemapToggleBtn = document.getElementById('basemapToggleBtn');
+    const basemapLabel = document.getElementById('basemapLabel');
+    const basemapSwatch = document.getElementById('basemapSwatch');
+
+    basemapToggleBtn.addEventListener('click', () => {
+      if (!isDarkBasemap) {
+        map.removeLayer(lightGrayBase);
+        map.removeLayer(lightGrayLabels);
+        darkGrayBase.addTo(map);
+        darkGrayLabels.addTo(map);
+        basemapLabel.textContent = 'Light Gray Canvas';
+        basemapSwatch.style.background = '#e6e6e6';
+        if (paBorderLayer) paBorderLayer.setStyle({ color: '#00b4d8' });
+        if (maskLayer) maskLayer.setStyle({ fillColor: '#121212', fillOpacity: 0.7 });
+      } else {
+        map.removeLayer(darkGrayBase);
+        map.removeLayer(darkGrayLabels);
+        lightGrayBase.addTo(map);
+        lightGrayLabels.addTo(map);
+        basemapLabel.textContent = 'Dark Gray Canvas';
+        basemapSwatch.style.background = '#2b2b2b';
+        if (paBorderLayer) paBorderLayer.setStyle({ color: '#2c3e50' });
+        if (maskLayer) maskLayer.setStyle({ fillColor: '#000000', fillOpacity: 0.5 });
+      }
+      isDarkBasemap = !isDarkBasemap;
+    });
 
     // UI Buttons
     document.getElementById('layerToggleBtn').addEventListener('click', () => document.getElementById('layerPanel').classList.toggle('hidden'));
