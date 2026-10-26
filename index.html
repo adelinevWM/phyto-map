@@ -1,422 +1,15 @@
-<!-- phyto-map. Goal for eventual finished output: agol-esque interactive map -->
-  
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pennsylvania Interactive Map</title>
-
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <!-- FontAwesome Icons for AGOL-style buttons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-
-  <style>
-    /* Reset and Full-Screen Setup */
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    body, html {
-      width: 100%;
-      height: 100%;
-      font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
-      overflow: hidden;
-      background-color: #1e1e1e;
-    }
-    #map {
-      width: 100%;
-      height: 100%;
-    }
-
-    /* TOP LEFT: AGOL-Style Search Bar (UI Placeholder) */
-    .agol-search-container {
-      position: absolute;
-      top: 15px;
-      left: 15px;
-      z-index: 1000;
-      display: flex;
-      background: #ffffff;
-      border-radius: 2px;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-      width: 280px;
-      height: 34px;
-      overflow: hidden;
-      border: 1px solid #d1d1d1;
-    }
-    .agol-search-input {
-      border: none;
-      padding: 0 10px;
-      flex: 1;
-      font-size: 13px;
-      color: #323232;
-      outline: none;
-    }
-    .agol-search-btn {
-      background: #ffffff;
-      border: none;
-      border-left: 1px solid #ececec;
-      width: 34px;
-      height: 34px;
-      cursor: pointer;
-      color: #6e6e6e;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: background 0.15s, color 0.15s;
-    }
-    .agol-search-btn:hover {
-      background: #f3f3f3;
-      color: #151515;
-    }
-
-    /* TOP RIGHT: AGOL Widget Stack */
-    .agol-top-right-stack {
-      position: absolute;
-      top: 15px;
-      right: 15px;
-      z-index: 1000;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 8px;
-    }
-
-    /* Individual AGOL Square Buttons */
-    .agol-btn-group {
-      display: flex;
-      flex-direction: column;
-      background: #ffffff;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-    .agol-btn {
-      width: 34px;
-      height: 34px;
-      background: #ffffff;
-      border: none;
-      border-bottom: 1px solid #e0e0e0;
-      color: #4c4c4c;
-      font-size: 14px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: background 0.15s, color 0.15s;
-    }
-    .agol-btn:last-child {
-      border-bottom: none;
-    }
-    .agol-btn:hover {
-      background: #f0f0f0;
-      color: #000000;
-    }
-    .agol-btn.active {
-      background: #0079c1;
-      color: #ffffff;
-    }
-
-    /* Basemap Toggle Card */
-    .agol-basemap-toggle {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: #ffffff;
-      padding: 6px 10px;
-      border-radius: 2px;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 600;
-      color: #323232;
-      border: 1px solid transparent;
-      transition: all 0.15s;
-      user-select: none;
-    }
-    .agol-basemap-toggle:hover {
-      background: #f8f8f8;
-      border-color: #0079c1;
-    }
-    .basemap-swatch {
-      width: 22px;
-      height: 22px;
-      border-radius: 2px;
-      background: #2b2b2b;
-      border: 1px solid #999;
-      display: inline-block;
-    }
-
-    /* Collapsible Empty Layer List Panel */
-    .agol-layer-panel {
-      width: 260px;
-      background: #ffffff;
-      border-radius: 2px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-      overflow: hidden;
-      display: block; /* Shown by default so supervisor sees it immediately */
-    }
-    .agol-layer-panel.hidden {
-      display: none;
-    }
-    .panel-header {
-      background: #f8f8f8;
-      padding: 10px 12px;
-      font-size: 13px;
-      font-weight: 600;
-      color: #323232;
-      border-bottom: 1px solid #e0e0e0;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .panel-close {
-      background: none;
-      border: none;
-      color: #6e6e6e;
-      cursor: pointer;
-      font-size: 14px;
-    }
-    .panel-close:hover {
-      color: #000;
-    }
-    .panel-body {
-      padding: 20px 14px;
-      text-align: center;
-      color: #6e6e6e;
-      font-size: 12px;
-      line-height: 1.5;
-    }
-    .panel-body i {
-      font-size: 22px;
-      color: #b0b0b0;
-      margin-bottom: 8px;
-      display: block;
-    }
-  </style>
-</head>
-<body>
-
-  <!-- Map Container -->
-  <div id="map"></div>
-
-  <!-- TOP LEFT: Search Bar (UI Ready for Future Functionality) -->
-  <div class="agol-search-container">
-    <input type="text" class="agol-search-input" placeholder="Find address or place in PA..." />
-    <button class="agol-search-btn" title="Search (Coming Soon)" onclick="alert('Search functionality will be connected in the next update.')">
-      <i class="fa-solid fa-magnifying-glass"></i>
-    </button>
-  </div>
-
-  <!-- TOP RIGHT: Zoom, Home, Basemap Toggle, and Layer List -->
-  <div class="agol-top-right-stack">
-    
-    <!-- Zoom In / Out Group -->
-    <div class="agol-btn-group">
-      <button class="agol-btn" id="zoomInBtn" title="Zoom in">
-        <i class="fa-solid fa-plus"></i>
-      </button>
-      <button class="agol-btn" id="zoomOutBtn" title="Zoom out">
-        <i class="fa-solid fa-minus"></i>
-      </button>
-    </div>
-
-    <!-- Home Button -->
-    <div class="agol-btn-group">
-      <button class="agol-btn" id="homeBtn" title="Default Pennsylvania view">
-        <i class="fa-solid fa-house"></i>
-      </button>
-    </div>
-
-    <!-- Basemap Toggle (Light Gray <-> Dark Gray) -->
-    <div class="agol-basemap-toggle" id="basemapToggleBtn" title="Switch between Light and Dark Gray Canvas">
-      <span class="basemap-swatch" id="basemapSwatch"></span>
-      <span id="basemapLabel">Dark Gray Canvas</span>
-    </div>
-
-    <!-- Layer List Toggle Button -->
-    <div class="agol-btn-group">
-      <button class="agol-btn active" id="layerToggleBtn" title="Toggle Layer List">
-        <i class="fa-solid fa-layer-group"></i>
-      </button>
-    </div>
-
-    <!-- Empty Layer List Panel -->
-    <div class="agol-layer-panel" id="layerPanel">
-      <div class="panel-header">
-        <span>Layers</span>
-        <button class="panel-close" id="closeLayerPanel" title="Close">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-      <div class="panel-body">
-        <i class="fa-solid fa-layer-group"></i>
-        <strong>No data layers active</strong><br />
-        Data layers will be added here in upcoming versions.
-      </div>
-    </div>
-
-  </div>
-
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <script>
-    // 1. Default Pennsylvania Center & Zoom
-    const PA_CENTER = [40.9, -77.75];
-    const PA_ZOOM = 7;
-
-    // 2. Initialize Map (disable default top-left zoom so we can put it in top-right)
-    const map = L.map('map', {
-      center: PA_CENTER,
-      zoom: PA_ZOOM,
-      zoomControl: false,
-      minZoom: 5
-    });
-
-    // 3. Define Esri Light Gray and Dark Gray Canvas Basemaps (Base + Reference Labels)
-    const lightGrayBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
-    });
-    const lightGrayLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}');
-
-    const darkGrayBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
-    });
-    const darkGrayLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}');
-
-    const lightGrayGroup = L.layerGroup([lightGrayBase, lightGrayLabels]);
-    const darkGrayGroup = L.layerGroup([darkGrayBase, darkGrayLabels]);
-
-    // Start with Light Gray Canvas
-    let isDarkBasemap = false;
-    lightGrayGroup.addTo(map);
-
-    // 4. Fetch Pennsylvania Boundary & Create Spotlight Mask (Option B: Shade Everything Outside PA)
-    let paBounds = null;
-    let paBorderLayer = null;
-    let maskLayer = null;
-
-    fetch('https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json')
-      .then(response => response.json())
-      .then(data => {
-        const paFeature = data.features.find(f => f.properties.name === 'Pennsylvania');
-        if (!paFeature) return;
-
-        // Extract PA outer ring coordinates
-        const paCoords = paFeature.geometry.coordinates[0];
-
-        // World outer ring (covers the entire globe) + PA ring as an inner cutout hole
-        const worldOuterRing = [
-          [-180, -90],
-          [-180, 90],
-          [180, 90],
-          [180, -90],
-          [-180, -90]
-        ];
-
-        const maskGeoJSON = {
-          type: "Feature",
-          geometry: {
-            type: "Polygon",
-            coordinates: [worldOuterRing, paCoords]
-          }
-        };
-
-        // Add Spotlight Shade outside Pennsylvania
-        maskLayer = L.geoJSON(maskGeoJSON, {
-          style: {
-            fillColor: '#121212',
-            fillOpacity: 0.65,
-            stroke: false,
-            interactive: false
-          }
-        }).addTo(map);
-
-        // Add Crisp Pennsylvania Outline
-        paBorderLayer = L.geoJSON(paFeature, {
-          style: {
-            color: '#2c3e50',
-            weight: 2.5,
-            fillOpacity: 0,
-            interactive: false
-          }
-        }).addTo(map);
-
-        // Save exact PA bounds and fit screen nicely
-        paBounds = paBorderLayer.getBounds();
-        map.fitBounds(paBounds, { padding: [40, 40] });
-      });
-
-    // 5. Wire Up Top-Right AGOL Controls
-    document.getElementById('zoomInBtn').addEventListener('click', () => map.zoomIn());
-    document.getElementById('zoomOutBtn').addEventListener('click', () => map.zoomOut());
-
-    document.getElementById('homeBtn').addEventListener('click', () => {
-      if (paBounds) {
-        map.fitBounds(paBounds, { padding: [40, 40] });
-      } else {
-        map.setView(PA_CENTER, PA_ZOOM);
-      }
-    });
-
-    // Basemap Toggle Logic
-    const basemapToggleBtn = document.getElementById('basemapToggleBtn');
-    const basemapLabel = document.getElementById('basemapLabel');
-    const basemapSwatch = document.getElementById('basemapSwatch');
-
-    basemapToggleBtn.addEventListener('click', () => {
-      if (!isDarkBasemap) {
-        map.removeLayer(lightGrayGroup);
-        darkGrayGroup.addTo(map);
-        basemapLabel.textContent = 'Light Gray Canvas';
-        basemapSwatch.style.background = '#e6e6e6';
-        if (paBorderLayer) paBorderLayer.setStyle({ color: '#00b4d8' }); // Crisp cyan-blue outline on dark mode
-        if (maskLayer) maskLayer.setStyle({ fillColor: '#000000', fillOpacity: 0.75 });
-      } else {
-        map.removeLayer(darkGrayGroup);
-        lightGrayGroup.addTo(map);
-        basemapLabel.textContent = 'Dark Gray Canvas';
-        basemapSwatch.style.background = '#2b2b2b';
-        if (paBorderLayer) paBorderLayer.setStyle({ color: '#2c3e50' });
-        if (maskLayer) maskLayer.setStyle({ fillColor: '#121212', fillOpacity: 0.65 });
-      }
-      isDarkBasemap = !isDarkBasemap;
-    });
-
-    // Layer List Toggle Logic
-    const layerToggleBtn = document.getElementById('layerToggleBtn');
-    const layerPanel = document.getElementById('layerPanel');
-    const closeLayerPanel = document.getElementById('closeLayerPanel');
-
-    layerToggleBtn.addEventListener('click', () => {
-      layerPanel.classList.toggle('hidden');
-      layerToggleBtn.classList.toggle('active');
-    });
-
-    closeLayerPanel.addEventListener('click', () => {
-      layerPanel.classList.add('hidden');
-      layerToggleBtn.classList.remove('active');
-    });
-  </script>
-</body>
-</html>
-
-<!-- Imported two layers: Top 5 cm and Soil horizon A -->
 <!DOCTYPE html>
 <!-- 
   # phyto-map
   Output: agol-esque interactive map
   First attempt: base map of cont. US that emphasizes Pennsylvania
-  Layer 1: USGS DS-801 Surface Soil (0-5 cm depth) Yttrium (Top5_Y) normalized to Upper Continental Crust (UCC = 21 ppm, Rudnick & Gao 2003)
+  Layer 1: USGS DS-801 Surface Soil (0-5 cm depth) Yttrium normalized to 1x-9x Upper Continental Crust (UCC = 21 ppm, Rudnick & Gao 2003)
 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pennsylvania Surface REE Interactive Map (UCC Tiers)</title>
+  <title>Pennsylvania Surface REE Interactive Map (1-9x UCC Tiers)</title>
 
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -560,7 +153,7 @@
 
     /* AGOL Layer & UCC Legend Panel */
     .agol-layer-panel {
-      width: 300px;
+      width: 320px;
       background: #ffffff;
       border-radius: 2px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
@@ -593,6 +186,8 @@
       color: #323232;
       font-size: 12px;
       line-height: 1.4;
+      max-height: 80vh;
+      overflow-y: auto;
     }
     .layer-item {
       display: flex;
@@ -623,14 +218,14 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      margin: 5px 0;
-      font-size: 11.5px;
+      margin: 4px 0;
+      font-size: 11px;
     }
     .legend-dot {
-      width: 12px;
-      height: 12px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
-      border: 1.5px solid #222;
+      border: 1px solid #222;
       display: inline-block;
       flex-shrink: 0;
     }
@@ -689,7 +284,7 @@
       </button>
     </div>
 
-    <!-- Basemap Toggle (Light Gray <-> Dark Gray) -->
+    <!-- Basemap Toggle -->
     <div class="agol-basemap-toggle" id="basemapToggleBtn" title="Switch between Light and Dark Gray Canvas">
       <span class="basemap-swatch" id="basemapSwatch"></span>
       <span id="basemapLabel">Dark Gray Canvas</span>
@@ -702,61 +297,59 @@
       </button>
     </div>
 
-    <!-- Layer List & UCC Legend Panel -->
+    <!-- Layer List & 1-9x UCC Legend Panel -->
     <div class="agol-layer-panel" id="layerPanel">
       <div class="panel-header">
-        <span>Layers &amp; UCC Tiers</span>
+        <span>Layers &amp; 1–9x UCC Tiers</span>
         <button class="panel-close" id="closeLayerPanel" title="Close">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
       <div class="panel-body">
         
-        <!-- Layer 1: Surface Soil Top 5cm Yttrium -->
+        <!-- Layer 1: Surface Soil Yttrium (1-9x UCC) -->
         <div class="layer-item">
           <input type="checkbox" id="toggleSoilLayer" checked />
           <div style="flex:1;">
             <label for="toggleSoilLayer" class="layer-title">Surface Soil Yttrium (0–5 cm)</label>
-            <span class="layer-sub">USGS DS-801 (Top5_Y) | UCC = 21 ppm</span>
+            <span class="layer-sub">USGS DS-801 | UCC Baseline = 21 ppm</span>
 
             <div class="legend-box">
-              <div class="legend-row">
-                <span class="legend-dot" style="background:#b0bec5;"></span>
-                <span>&lt; 1.0x UCC (&lt; 21 ppm) — Depleted/Bg</span>
-              </div>
-              <div class="legend-row">
-                <span class="legend-dot" style="background:#ffd54f;"></span>
-                <span>1.0x – 1.5x UCC (21–31.5 ppm) — Moderate</span>
-              </div>
-              <div class="legend-row">
-                <span class="legend-dot" style="background:#fb8c00;"></span>
-                <span>1.5x – 2.0x UCC (31.5–42 ppm) — Elevated</span>
-              </div>
-              <div class="legend-row">
-                <span class="legend-dot" style="background:#e53935;"></span>
-                <span>&ge; 2.0x UCC (&ge; 42 ppm) — Enriched Hotspot</span>
-              </div>
+              <div class="legend-row"><span class="legend-dot" style="background:#b0bec5;"></span><span>&lt; 1x UCC (&lt; 21 ppm)</span></div>
+              <div class="legend-row"><span class="legend-dot" style="background:#fff59d;"></span><span>1x – 2x UCC (21–42 ppm)</span></div>
+              <div class="legend-row"><span class="legend-dot" style="background:#ffee58;"></span><span>2x – 3x UCC (42–63 ppm)</span></div>
+              <div class="legend-row"><span class="legend-dot" style="background:#ffca28;"></span><span>3x – 4x UCC (63–84 ppm)</span></div>
+              <div class="legend-row"><span class="legend-dot" style="background:#ffa726;"></span><span>4x – 5x UCC (84–105 ppm)</span></div>
+              <div class="legend-row"><span class="legend-dot" style="background:#fb8c00;"></span><span>5x – 6x UCC (105–126 ppm)</span></div>
+              <div class="legend-row"><span class="legend-dot" style="background:#f4511e;"></span><span>6x – 7x UCC (126–147 ppm)</span></div>
+              <div class="legend-row"><span class="legend-dot" style="background:#e53935;"></span><span>7x – 8x UCC (147–168 ppm)</span></div>
+              <div class="legend-row"><span class="legend-dot" style="background:#b71c1c;"></span><span>&ge; 8x UCC (&ge; 168 ppm Hotspot)</span></div>
             </div>
 
             <div class="filter-box">
-              <label style="font-weight:600; font-size:11px;">Filter by Minimum UCC Threshold:</label>
+              <label style="font-weight:600; font-size:11px;">Filter by Minimum UCC Tier:</label>
               <select id="uccFilterSelect" class="filter-select">
-                <option value="0">Show All PA Surface Samples</option>
-                <option value="1.0">&ge; 1.0x UCC (&ge; 21 ppm Y)</option>
-                <option value="1.5">&ge; 1.5x UCC (&ge; 31.5 ppm Y)</option>
-                <option value="2.0">&ge; 2.0x UCC (&ge; 42 ppm Y)</option>
+                <option value="0">Show All PA Samples</option>
+                <option value="1">1x UCC (&ge; 21 ppm)</option>
+                <option value="2">2x UCC (&ge; 42 ppm)</option>
+                <option value="3">3x UCC (&ge; 63 ppm)</option>
+                <option value="4">4x UCC (&ge; 84 ppm)</option>
+                <option value="5">5x UCC (&ge; 105 ppm)</option>
+                <option value="6">6x UCC (&ge; 126 ppm)</option>
+                <option value="7">7x UCC (&ge; 147 ppm)</option>
+                <option value="8">8x UCC (&ge; 168 ppm)</option>
               </select>
             </div>
             <span id="sampleCountBadge" class="status-badge">Loading pa_top5.csv...</span>
           </div>
         </div>
 
-        <!-- Layer 2 Placeholder: Host Geology / Surface Mine Polygons -->
+        <!-- Layer 2 Placeholder -->
         <div class="layer-item" style="border-bottom:none; margin-bottom:0; padding-bottom:0;">
           <input type="checkbox" disabled />
           <div>
             <span class="layer-title" style="color:#888;">PA Surface Host Outcrops / AML Polygons</span>
-            <span class="layer-sub">Layer 2 (Pending PASDA/USGS polygon integration)</span>
+            <span class="layer-sub">Layer 2 (Pending PASDA integration)</span>
           </div>
         </div>
 
@@ -765,14 +358,14 @@
 
   </div>
 
-  <!-- Leaflet JS & PapaParse CSV Reader -->
+  <!-- Leaflet JS & PapaParse -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
   <script>
     const PA_CENTER = [40.9, -77.75];
     const PA_ZOOM = 7;
-    const Y_UCC_BASELINE = 21.0; // Rudnick & Gao (2003) Upper Continental Crust Yttrium (ppm)
+    const Y_UCC_BASELINE = 21.0;
 
     const map = L.map('map', {
       center: PA_CENTER,
@@ -781,7 +374,6 @@
       minZoom: 5
     });
 
-    // Basemaps
     const lightGrayBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
       attribution: 'Tiles &copy; Esri &mdash; USGS DS-801'
     });
@@ -798,7 +390,6 @@
     let isDarkBasemap = false;
     lightGrayGroup.addTo(map);
 
-    // Fetch Pennsylvania Boundary & Spotlight Mask
     let paBounds = null;
     let paBorderLayer = null;
     let maskLayer = null;
@@ -827,26 +418,30 @@
         map.fitBounds(paBounds, { padding: [40, 40] });
       });
 
-    // Load & Plot USGS DS-801 Surface Soil CSV (pa_top5.csv)
     const soilLayerGroup = L.layerGroup().addTo(map);
     let paSoilRecords = [];
 
-    function getUccColor(uccRatio) {
-      if (uccRatio >= 2.0) return '#e53935'; // Red: >= 2.0x UCC
-      if (uccRatio >= 1.5) return '#fb8c00'; // Orange: 1.5x - 2.0x UCC
-      if (uccRatio >= 1.0) return '#ffd54f'; // Gold: 1.0x - 1.5x UCC
-      return '#b0bec5';                      // Gray-Blue: < 1.0x UCC
+    function getUccColor(ucc) {
+      if (ucc >= 8) return '#b71c1c';
+      if (ucc >= 7) return '#e53935';
+      if (ucc >= 6) return '#f4511e';
+      if (ucc >= 5) return '#fb8c00';
+      if (ucc >= 4) return '#ffa726';
+      if (ucc >= 3) return '#ffca28';
+      if (ucc >= 2) return '#ffee58';
+      if (ucc >= 1) return '#fff59d';
+      return '#b0bec5';
     }
 
-    function renderSoilPoints(minUccThreshold = 0) {
+    function renderSoilPoints(minUccTier = 0) {
       soilLayerGroup.clearLayers();
       let shownCount = 0;
 
       paSoilRecords.forEach(row => {
-        if (row.ucc >= minUccThreshold) {
+        if (row.ucc >= minUccTier) {
           shownCount++;
           const marker = L.circleMarker([row.lat, row.lng], {
-            radius: row.ucc >= 1.5 ? 8 : 6,
+            radius: row.ucc >= 4 ? 8 : 6,
             fillColor: getUccColor(row.ucc),
             color: '#1a1a1a',
             weight: 1.2,
@@ -858,7 +453,7 @@
             <div style="font-family:'Avenir Next',sans-serif; font-size:12px; line-height:1.5;">
               <strong style="font-size:13px; color:#0079c1;">PA Surface Soil (0–5 cm)</strong><br/>
               <strong>Site ID:</strong> ${row.siteId} (${row.labId})<br/>
-              <strong>Yttrium (Top5_Y):</strong> <span style="font-weight:700;">${row.y_ppm} ppm</span><br/>
+              <strong>Yttrium (TOP5_Y):</strong> <span style="font-weight:700;">${row.y_ppm} ppm</span><br/>
               <strong>UCC Enrichment:</strong> <span style="font-weight:700;">${row.ucc.toFixed(2)}x UCC</span> <em>(Baseline: 21 ppm)</em><br/>
               <strong>Land Cover:</strong> ${row.landCover}<br/>
               <strong>Sampled:</strong> ${row.collDate}
@@ -869,8 +464,7 @@
         }
       });
 
-      const badge = document.getElementById('sampleCountBadge');
-      badge.textContent = `Showing ${shownCount} of ${paSoilRecords.length} PA surface sites`;
+      document.getElementById('sampleCountBadge').textContent = `Showing ${shownCount} of ${paSoilRecords.length} PA surface sites`;
     }
 
     Papa.parse('pa_top5.csv', {
@@ -879,21 +473,25 @@
       skipEmptyLines: true,
       complete: function(results) {
         paSoilRecords = results.data
-          .filter(r => r.StateID && r.StateID.trim() === 'PA')
+          .filter(r => {
+            // Check uppercase or mixed case state ID
+            const state = r.STATEID || r.StateID || '';
+            return state.trim() === 'PA';
+          })
           .map(r => {
-            const lat = parseFloat(r.Latitude);
-            const lng = parseFloat(r.Longitude);
-            const y_ppm = parseFloat(r.Top5_Y);
+            const lat = parseFloat(r.LATITUDE || r.Latitude);
+            const lng = parseFloat(r.LONGITUDE || r.Longitude);
+            const y_ppm = parseFloat(r.TOP5_Y || r.Top5_Y);
             if (isNaN(lat) || isNaN(lng) || isNaN(y_ppm)) return null;
             return {
-              labId: r.Top5_LabID || 'N/A',
-              siteId: r.SiteID || 'N/A',
+              labId: r.TOP5_LABID || r.Top5_LabID || 'N/A',
+              siteId: r.SITEID || r.SiteID || 'N/A',
               lat: lat,
               lng: lng,
               y_ppm: y_ppm,
               ucc: y_ppm / Y_UCC_BASELINE,
-              landCover: r.LandCover1 || 'N/A',
-              collDate: r.CollDate || 'N/A'
+              landCover: r.LANDCOVER1 || r.LandCover1 || 'N/A',
+              collDate: r.COLLDATE || r.CollDate || 'N/A'
             };
           })
           .filter(Boolean);
@@ -901,24 +499,19 @@
         renderSoilPoints(0);
       },
       error: function() {
-        document.getElementById('sampleCountBadge').textContent = 'Upload pa_top5.csv to GitHub to view points';
+        document.getElementById('sampleCountBadge').textContent = 'Error loading pa_top5.csv';
       }
     });
 
-    // Layer Checkbox & UCC Threshold Filter Listeners
     document.getElementById('toggleSoilLayer').addEventListener('change', (e) => {
-      if (e.target.checked) {
-        map.addLayer(soilLayerGroup);
-      } else {
-        map.removeLayer(soilLayerGroup);
-      }
+      if (e.target.checked) map.addLayer(soilLayerGroup);
+      else map.removeLayer(soilLayerGroup);
     });
 
     document.getElementById('uccFilterSelect').addEventListener('change', (e) => {
       renderSoilPoints(parseFloat(e.target.value));
     });
 
-    // Top-Right Controls
     document.getElementById('zoomInBtn').addEventListener('click', () => map.zoomIn());
     document.getElementById('zoomOutBtn').addEventListener('click', () => map.zoomOut());
     document.getElementById('homeBtn').addEventListener('click', () => {
@@ -926,7 +519,6 @@
       else map.setView(PA_CENTER, PA_ZOOM);
     });
 
-    // Basemap Toggle
     const basemapToggleBtn = document.getElementById('basemapToggleBtn');
     const basemapLabel = document.getElementById('basemapLabel');
     const basemapSwatch = document.getElementById('basemapSwatch');
@@ -950,7 +542,6 @@
       isDarkBasemap = !isDarkBasemap;
     });
 
-    // Layer Panel Toggle
     const layerToggleBtn = document.getElementById('layerToggleBtn');
     const layerPanel = document.getElementById('layerPanel');
     const closeLayerPanel = document.getElementById('closeLayerPanel');
@@ -964,7 +555,6 @@
       layerToggleBtn.classList.remove('active');
     });
 
-    // Working Pennsylvania Search Bar (OpenStreetMap Nominatim restricted to PA)
     function runSearch() {
       const q = document.getElementById('searchInput').value.trim();
       if (!q) return;
