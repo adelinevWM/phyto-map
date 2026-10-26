@@ -148,14 +148,14 @@
 
     // LAYER 2: PASDA Abandoned Mine Land Polygons (Guaranteed PA data)
     const amlLayer = L.esri.featureLayer({
-      url: 'https://www.pasda.psu.edu/arcgis/rest/services/pasda/PADEP/MapServer/61',
+      url: 'https://mapservices.pasda.psu.edu/server/rest/services/pasda/DEP/MapServer/1',
       simplifyFactor: 0.5,
       precision: 5,
       style: function () {
         return { color: '#8e44ad', weight: 1, fillOpacity: 0.5 };
       }
     }).bindPopup(function (layer) {
-      return `<b>Abandoned Mine Land (AML)</b><br><b>Name:</b> ${layer.feature.properties.NAME || 'N/A'}<br><b>Problem Area:</b> ${layer.feature.properties.PROBLEM_AREA_ID || 'N/A'}`;
+      return `<b>Abandoned Mine Land (AML)</b><br><b>Name:</b> ${layer.feature.properties.NAME || 'N/A'}`;
     }).addTo(map);
 
     // LAYER 1: Embedded USGS Soil Data
