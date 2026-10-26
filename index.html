@@ -403,3 +403,585 @@
   </script>
 </body>
 </html>
+
+<!-- Imported two layers: Top 5 cm and Soil horizon A -->
+<!DOCTYPE html>
+<!-- 
+  # phyto-map
+  Output: agol-esque interactive map
+  First attempt: base map of cont. US that emphasizes Pennsylvania
+  Layer 1: USGS DS-801 Surface Soil (0-5 cm depth) Yttrium (Top5_Y) normalized to Upper Continental Crust (UCC = 21 ppm, Rudnick & Gao 2003)
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pennsylvania Surface REE Interactive Map (UCC Tiers)</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- FontAwesome Icons for AGOL-style buttons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+      overflow: hidden;
+      background-color: #1e1e1e;
+    }
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* TOP LEFT: AGOL-Style Search Bar */
+    .agol-search-container {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      z-index: 1000;
+      display: flex;
+      background: #ffffff;
+      border-radius: 2px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+      width: 290px;
+      height: 34px;
+      overflow: hidden;
+      border: 1px solid #d1d1d1;
+    }
+    .agol-search-input {
+      border: none;
+      padding: 0 10px;
+      flex: 1;
+      font-size: 13px;
+      color: #323232;
+      outline: none;
+    }
+    .agol-search-btn {
+      background: #ffffff;
+      border: none;
+      border-left: 1px solid #ececec;
+      width: 34px;
+      height: 34px;
+      cursor: pointer;
+      color: #6e6e6e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .agol-search-btn:hover {
+      background: #f3f3f3;
+      color: #151515;
+    }
+
+    /* TOP RIGHT: AGOL Widget Stack */
+    .agol-top-right-stack {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    .agol-btn-group {
+      display: flex;
+      flex-direction: column;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .agol-btn {
+      width: 34px;
+      height: 34px;
+      background: #ffffff;
+      border: none;
+      border-bottom: 1px solid #e0e0e0;
+      color: #4c4c4c;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .agol-btn:last-child {
+      border-bottom: none;
+    }
+    .agol-btn:hover {
+      background: #f0f0f0;
+      color: #000000;
+    }
+    .agol-btn.active {
+      background: #0079c1;
+      color: #ffffff;
+    }
+
+    /* Basemap Toggle Card */
+    .agol-basemap-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #ffffff;
+      padding: 6px 10px;
+      border-radius: 2px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      color: #323232;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .agol-basemap-toggle:hover {
+      background: #f8f8f8;
+      border-color: #0079c1;
+    }
+    .basemap-swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 2px;
+      background: #2b2b2b;
+      border: 1px solid #999;
+      display: inline-block;
+    }
+
+    /* AGOL Layer & UCC Legend Panel */
+    .agol-layer-panel {
+      width: 300px;
+      background: #ffffff;
+      border-radius: 2px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+      display: block;
+    }
+    .agol-layer-panel.hidden {
+      display: none;
+    }
+    .panel-header {
+      background: #f8f8f8;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #323232;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .panel-close {
+      background: none;
+      border: none;
+      color: #6e6e6e;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .panel-body {
+      padding: 12px 14px;
+      color: #323232;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .layer-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    .layer-item input[type="checkbox"] {
+      margin-top: 2px;
+      cursor: pointer;
+    }
+    .layer-title {
+      font-weight: 600;
+      color: #151515;
+      display: block;
+    }
+    .layer-sub {
+      font-size: 11px;
+      color: #6e6e6e;
+    }
+    .legend-box {
+      margin-top: 6px;
+      padding-left: 4px;
+    }
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 5px 0;
+      font-size: 11.5px;
+    }
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 1.5px solid #222;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .filter-box {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed #e0e0e0;
+    }
+    .filter-select {
+      width: 100%;
+      margin-top: 4px;
+      padding: 4px 6px;
+      font-size: 11.5px;
+      border: 1px solid #ccc;
+      border-radius: 2px;
+    }
+    .status-badge {
+      display: inline-block;
+      margin-top: 6px;
+      font-size: 11px;
+      color: #0079c1;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Map Container -->
+  <div id="map"></div>
+
+  <!-- TOP LEFT: Search Bar -->
+  <div class="agol-search-container">
+    <input type="text" id="searchInput" class="agol-search-input" placeholder="Find place in PA (e.g., Pittsburgh)..." />
+    <button class="agol-search-btn" id="searchBtn" title="Search Pennsylvania">
+      <i class="fa-solid fa-magnifying-glass"></i>
+    </button>
+  </div>
+
+  <!-- TOP RIGHT: Zoom, Home, Basemap Toggle, and Layer List -->
+  <div class="agol-top-right-stack">
+    
+    <!-- Zoom In / Out Group -->
+    <div class="agol-btn-group">
+      <button class="agol-btn" id="zoomInBtn" title="Zoom in">
+        <i class="fa-solid fa-plus"></i>
+      </button>
+      <button class="agol-btn" id="zoomOutBtn" title="Zoom out">
+        <i class="fa-solid fa-minus"></i>
+      </button>
+    </div>
+
+    <!-- Home Button -->
+    <div class="agol-btn-group">
+      <button class="agol-btn" id="homeBtn" title="Default Pennsylvania view">
+        <i class="fa-solid fa-house"></i>
+      </button>
+    </div>
+
+    <!-- Basemap Toggle (Light Gray <-> Dark Gray) -->
+    <div class="agol-basemap-toggle" id="basemapToggleBtn" title="Switch between Light and Dark Gray Canvas">
+      <span class="basemap-swatch" id="basemapSwatch"></span>
+      <span id="basemapLabel">Dark Gray Canvas</span>
+    </div>
+
+    <!-- Layer List Toggle Button -->
+    <div class="agol-btn-group">
+      <button class="agol-btn active" id="layerToggleBtn" title="Toggle Layer List">
+        <i class="fa-solid fa-layer-group"></i>
+      </button>
+    </div>
+
+    <!-- Layer List & UCC Legend Panel -->
+    <div class="agol-layer-panel" id="layerPanel">
+      <div class="panel-header">
+        <span>Layers &amp; UCC Tiers</span>
+        <button class="panel-close" id="closeLayerPanel" title="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="panel-body">
+        
+        <!-- Layer 1: Surface Soil Top 5cm Yttrium -->
+        <div class="layer-item">
+          <input type="checkbox" id="toggleSoilLayer" checked />
+          <div style="flex:1;">
+            <label for="toggleSoilLayer" class="layer-title">Surface Soil Yttrium (0–5 cm)</label>
+            <span class="layer-sub">USGS DS-801 (Top5_Y) | UCC = 21 ppm</span>
+
+            <div class="legend-box">
+              <div class="legend-row">
+                <span class="legend-dot" style="background:#b0bec5;"></span>
+                <span>&lt; 1.0x UCC (&lt; 21 ppm) — Depleted/Bg</span>
+              </div>
+              <div class="legend-row">
+                <span class="legend-dot" style="background:#ffd54f;"></span>
+                <span>1.0x – 1.5x UCC (21–31.5 ppm) — Moderate</span>
+              </div>
+              <div class="legend-row">
+                <span class="legend-dot" style="background:#fb8c00;"></span>
+                <span>1.5x – 2.0x UCC (31.5–42 ppm) — Elevated</span>
+              </div>
+              <div class="legend-row">
+                <span class="legend-dot" style="background:#e53935;"></span>
+                <span>&ge; 2.0x UCC (&ge; 42 ppm) — Enriched Hotspot</span>
+              </div>
+            </div>
+
+            <div class="filter-box">
+              <label style="font-weight:600; font-size:11px;">Filter by Minimum UCC Threshold:</label>
+              <select id="uccFilterSelect" class="filter-select">
+                <option value="0">Show All PA Surface Samples</option>
+                <option value="1.0">&ge; 1.0x UCC (&ge; 21 ppm Y)</option>
+                <option value="1.5">&ge; 1.5x UCC (&ge; 31.5 ppm Y)</option>
+                <option value="2.0">&ge; 2.0x UCC (&ge; 42 ppm Y)</option>
+              </select>
+            </div>
+            <span id="sampleCountBadge" class="status-badge">Loading pa_top5.csv...</span>
+          </div>
+        </div>
+
+        <!-- Layer 2 Placeholder: Host Geology / Surface Mine Polygons -->
+        <div class="layer-item" style="border-bottom:none; margin-bottom:0; padding-bottom:0;">
+          <input type="checkbox" disabled />
+          <div>
+            <span class="layer-title" style="color:#888;">PA Surface Host Outcrops / AML Polygons</span>
+            <span class="layer-sub">Layer 2 (Pending PASDA/USGS polygon integration)</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Leaflet JS & PapaParse CSV Reader -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+  <script>
+    const PA_CENTER = [40.9, -77.75];
+    const PA_ZOOM = 7;
+    const Y_UCC_BASELINE = 21.0; // Rudnick & Gao (2003) Upper Continental Crust Yttrium (ppm)
+
+    const map = L.map('map', {
+      center: PA_CENTER,
+      zoom: PA_ZOOM,
+      zoomControl: false,
+      minZoom: 5
+    });
+
+    // Basemaps
+    const lightGrayBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; USGS DS-801'
+    });
+    const lightGrayLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}');
+
+    const darkGrayBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; USGS DS-801'
+    });
+    const darkGrayLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}');
+
+    const lightGrayGroup = L.layerGroup([lightGrayBase, lightGrayLabels]);
+    const darkGrayGroup = L.layerGroup([darkGrayBase, darkGrayLabels]);
+
+    let isDarkBasemap = false;
+    lightGrayGroup.addTo(map);
+
+    // Fetch Pennsylvania Boundary & Spotlight Mask
+    let paBounds = null;
+    let paBorderLayer = null;
+    let maskLayer = null;
+
+    fetch('https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json')
+      .then(response => response.json())
+      .then(data => {
+        const paFeature = data.features.find(f => f.properties.name === 'Pennsylvania');
+        if (!paFeature) return;
+
+        const paCoords = paFeature.geometry.coordinates[0];
+        const worldOuterRing = [[-180, -90], [-180, 90], [180, 90], [180, -90], [-180, -90]];
+
+        maskLayer = L.geoJSON({
+          type: "Feature",
+          geometry: { type: "Polygon", coordinates: [worldOuterRing, paCoords] }
+        }, {
+          style: { fillColor: '#121212', fillOpacity: 0.65, stroke: false, interactive: false }
+        }).addTo(map);
+
+        paBorderLayer = L.geoJSON(paFeature, {
+          style: { color: '#2c3e50', weight: 2.5, fillOpacity: 0, interactive: false }
+        }).addTo(map);
+
+        paBounds = paBorderLayer.getBounds();
+        map.fitBounds(paBounds, { padding: [40, 40] });
+      });
+
+    // Load & Plot USGS DS-801 Surface Soil CSV (pa_top5.csv)
+    const soilLayerGroup = L.layerGroup().addTo(map);
+    let paSoilRecords = [];
+
+    function getUccColor(uccRatio) {
+      if (uccRatio >= 2.0) return '#e53935'; // Red: >= 2.0x UCC
+      if (uccRatio >= 1.5) return '#fb8c00'; // Orange: 1.5x - 2.0x UCC
+      if (uccRatio >= 1.0) return '#ffd54f'; // Gold: 1.0x - 1.5x UCC
+      return '#b0bec5';                      // Gray-Blue: < 1.0x UCC
+    }
+
+    function renderSoilPoints(minUccThreshold = 0) {
+      soilLayerGroup.clearLayers();
+      let shownCount = 0;
+
+      paSoilRecords.forEach(row => {
+        if (row.ucc >= minUccThreshold) {
+          shownCount++;
+          const marker = L.circleMarker([row.lat, row.lng], {
+            radius: row.ucc >= 1.5 ? 8 : 6,
+            fillColor: getUccColor(row.ucc),
+            color: '#1a1a1a',
+            weight: 1.2,
+            opacity: 1,
+            fillOpacity: 0.9
+          });
+
+          marker.bindPopup(`
+            <div style="font-family:'Avenir Next',sans-serif; font-size:12px; line-height:1.5;">
+              <strong style="font-size:13px; color:#0079c1;">PA Surface Soil (0–5 cm)</strong><br/>
+              <strong>Site ID:</strong> ${row.siteId} (${row.labId})<br/>
+              <strong>Yttrium (Top5_Y):</strong> <span style="font-weight:700;">${row.y_ppm} ppm</span><br/>
+              <strong>UCC Enrichment:</strong> <span style="font-weight:700;">${row.ucc.toFixed(2)}x UCC</span> <em>(Baseline: 21 ppm)</em><br/>
+              <strong>Land Cover:</strong> ${row.landCover}<br/>
+              <strong>Sampled:</strong> ${row.collDate}
+            </div>
+          `);
+
+          marker.addTo(soilLayerGroup);
+        }
+      });
+
+      const badge = document.getElementById('sampleCountBadge');
+      badge.textContent = `Showing ${shownCount} of ${paSoilRecords.length} PA surface sites`;
+    }
+
+    Papa.parse('pa_top5.csv', {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: function(results) {
+        paSoilRecords = results.data
+          .filter(r => r.StateID && r.StateID.trim() === 'PA')
+          .map(r => {
+            const lat = parseFloat(r.Latitude);
+            const lng = parseFloat(r.Longitude);
+            const y_ppm = parseFloat(r.Top5_Y);
+            if (isNaN(lat) || isNaN(lng) || isNaN(y_ppm)) return null;
+            return {
+              labId: r.Top5_LabID || 'N/A',
+              siteId: r.SiteID || 'N/A',
+              lat: lat,
+              lng: lng,
+              y_ppm: y_ppm,
+              ucc: y_ppm / Y_UCC_BASELINE,
+              landCover: r.LandCover1 || 'N/A',
+              collDate: r.CollDate || 'N/A'
+            };
+          })
+          .filter(Boolean);
+
+        renderSoilPoints(0);
+      },
+      error: function() {
+        document.getElementById('sampleCountBadge').textContent = 'Upload pa_top5.csv to GitHub to view points';
+      }
+    });
+
+    // Layer Checkbox & UCC Threshold Filter Listeners
+    document.getElementById('toggleSoilLayer').addEventListener('change', (e) => {
+      if (e.target.checked) {
+        map.addLayer(soilLayerGroup);
+      } else {
+        map.removeLayer(soilLayerGroup);
+      }
+    });
+
+    document.getElementById('uccFilterSelect').addEventListener('change', (e) => {
+      renderSoilPoints(parseFloat(e.target.value));
+    });
+
+    // Top-Right Controls
+    document.getElementById('zoomInBtn').addEventListener('click', () => map.zoomIn());
+    document.getElementById('zoomOutBtn').addEventListener('click', () => map.zoomOut());
+    document.getElementById('homeBtn').addEventListener('click', () => {
+      if (paBounds) map.fitBounds(paBounds, { padding: [40, 40] });
+      else map.setView(PA_CENTER, PA_ZOOM);
+    });
+
+    // Basemap Toggle
+    const basemapToggleBtn = document.getElementById('basemapToggleBtn');
+    const basemapLabel = document.getElementById('basemapLabel');
+    const basemapSwatch = document.getElementById('basemapSwatch');
+
+    basemapToggleBtn.addEventListener('click', () => {
+      if (!isDarkBasemap) {
+        map.removeLayer(lightGrayGroup);
+        darkGrayGroup.addTo(map);
+        basemapLabel.textContent = 'Light Gray Canvas';
+        basemapSwatch.style.background = '#e6e6e6';
+        if (paBorderLayer) paBorderLayer.setStyle({ color: '#00b4d8' });
+        if (maskLayer) maskLayer.setStyle({ fillColor: '#000000', fillOpacity: 0.75 });
+      } else {
+        map.removeLayer(darkGrayGroup);
+        lightGrayGroup.addTo(map);
+        basemapLabel.textContent = 'Dark Gray Canvas';
+        basemapSwatch.style.background = '#2b2b2b';
+        if (paBorderLayer) paBorderLayer.setStyle({ color: '#2c3e50' });
+        if (maskLayer) maskLayer.setStyle({ fillColor: '#121212', fillOpacity: 0.65 });
+      }
+      isDarkBasemap = !isDarkBasemap;
+    });
+
+    // Layer Panel Toggle
+    const layerToggleBtn = document.getElementById('layerToggleBtn');
+    const layerPanel = document.getElementById('layerPanel');
+    const closeLayerPanel = document.getElementById('closeLayerPanel');
+
+    layerToggleBtn.addEventListener('click', () => {
+      layerPanel.classList.toggle('hidden');
+      layerToggleBtn.classList.toggle('active');
+    });
+    closeLayerPanel.addEventListener('click', () => {
+      layerPanel.classList.add('hidden');
+      layerToggleBtn.classList.remove('active');
+    });
+
+    // Working Pennsylvania Search Bar (OpenStreetMap Nominatim restricted to PA)
+    function runSearch() {
+      const q = document.getElementById('searchInput').value.trim();
+      if (!q) return;
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q + ', Pennsylvania')}&limit=1`)
+        .then(r => r.json())
+        .then(res => {
+          if (res && res.length > 0) {
+            map.setView([parseFloat(res[0].lat), parseFloat(res[0].lon)], 11);
+          } else {
+            alert('Location not found in Pennsylvania.');
+          }
+        });
+    }
+    document.getElementById('searchBtn').addEventListener('click', runSearch);
+    document.getElementById('searchInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') runSearch();
+    });
+  </script>
+</body>
+</html>
